@@ -1,7 +1,13 @@
 #!/usr/bin/env python
 
+# We want a way to generate non-colliding 'pyxl<num>' ids for elements, so we're
+# using a non-cryptographically secure random number generator. We want it to be
+# insecure because these aren't being used for anything cryptographic and it's
+# much faster (2x). We're also not using NumPy (which is even faster) because
+# it's a difficult dependency to fulfill purely to generate random numbers.
+import random
 import sys
-from Crypto.Random import random
+
 from pyxl.utils import escape
 
 class PyxlException(Exception):
@@ -35,6 +41,7 @@ class x_base(object):
         'id': unicode,
         'lang': unicode,
         'maxlength': unicode,
+        'role': unicode,
         'style': unicode,
         'tabindex': int,
         'title': unicode,
@@ -93,11 +100,12 @@ class x_base(object):
             select = lambda x: selector[1:] in x.get_class() 
 
         # filter by id
-        if selector[0] == '#':
+        elif selector[0] == '#':
             select = lambda x: selector[1:] == x.get_id()
 
         # filter by tag name
-        select = lambda x: x.__class__.__name__ == ('x_%s' % selector)
+        else:
+            select = lambda x: x.__class__.__name__ == ('x_%s' % selector)
 
         if exclude:
             func = lambda x: not select(x)
@@ -123,7 +131,23 @@ class x_base(object):
         # this check is fairly expensive (~8% of cost)
         if not self.allows_attribute(name):
             raise PyxlException('<%s> has no attr named "%s"' % (self.__tag__, name))
-        return self.__attributes__.get(name, default)
+
+        value = self.__attributes__.get(name)
+
+        if value is not None:
+            return value
+
+        attr_type = self.__attrs__.get(name, unicode)
+        if type(attr_type) == list:
+            if not attr_type:
+                raise PyxlException('Invalid attribute definition')
+
+            if None in attr_type[1:]:
+                raise PyxlException('None must be the first, default value')
+
+            return attr_type[0]
+
+        return default
 
     def transfer_attributes(self, element):
         for name, value in self.__attributes__.iteritems():
@@ -136,18 +160,28 @@ class x_base(object):
             raise PyxlException('<%s> has no attr named "%s"' % (self.__tag__, name))
 
         if value is not None:
-
             attr_type = self.__attrs__.get(name, unicode)
 
-            try:
-                # Validate type of attr and cast to correct type if possible
-                value = value if isinstance(value, attr_type) else attr_type(value)
-            except Exception:
-                exc_type, exc_obj, exc_tb = sys.exc_info()
-                msg = '%s: %s: incorrect type for "%s". expected %s, got %s' % (
-                    self.__tag__, self.__class__.__name__, name, attr_type, type(value))
-                exception = PyxlException(msg)
-                raise exception, None, exc_tb
+            if type(attr_type) == list:
+                # support for enum values in pyxl attributes
+                values_enum = attr_type
+                assert values_enum, 'Invalid attribute definition'
+
+                if value not in values_enum:
+                    msg = '%s: %s: incorrect value "%s" for "%s". Expecting enum value %s' % (
+                        self.__tag__, self.__class__.__name__, value, name, values_enum)
+                    raise PyxlException(msg)
+
+            else:
+                try:
+                    # Validate type of attr and cast to correct type if possible
+                    value = value if isinstance(value, attr_type) else attr_type(value)
+                except Exception:
+                    exc_type, exc_obj, exc_tb = sys.exc_info()
+                    msg = '%s: %s: incorrect type for "%s". expected %s, got %s' % (
+                        self.__tag__, self.__class__.__name__, name, attr_type, type(value))
+                    exception = PyxlException(msg)
+                    raise exception, None, exc_tb
 
             self.__attributes__[name] = value
 

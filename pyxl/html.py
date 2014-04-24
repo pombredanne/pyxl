@@ -3,6 +3,18 @@
 from pyxl.utils import escape
 from pyxl.base import x_base
 
+_if_condition_stack = []
+_last_if_condition = None
+
+def _push_condition(cond):
+    _if_condition_stack.append(cond)
+    return cond
+
+def _leave_if():
+    global _last_if_condition
+    _last_if_condition = _if_condition_stack.pop()
+    return []
+
 class x_html_element(x_base):
     def _to_list(self, l):
         l.extend((u'<', self.__tag__))
@@ -100,6 +112,7 @@ class x_a(x_html_element):
         'type': unicode,
         'name': unicode,
         'target': unicode,
+        'download': unicode,
         }
 
 class x_abbr(x_html_element):
@@ -130,7 +143,7 @@ class x_audio(x_html_element):
     __attrs__ = {
         'src': unicode
         }
-        
+
 class x_b(x_html_element):
    pass
 
@@ -233,6 +246,12 @@ class x_embed(x_html_element):
         'type': unicode,
         }
 
+class x_figure(x_html_element):
+   pass
+
+class x_figcaption(x_html_element):
+   pass
+
 class x_fieldset(x_html_element):
    pass
 
@@ -244,12 +263,21 @@ class x_form(x_html_element):
         'action': unicode,
         'accept': unicode,
         'accept-charset': unicode,
+        'autocomplete': unicode,
         'enctype': unicode,
         'method': unicode,
         'name': unicode,
-        'target': unicode,
         'novalidate': unicode,
+        'target': unicode,
         }
+
+class x_form_error(x_base):
+    __attrs__ = {
+        'name': unicode
+        }
+
+    def _to_list(self, l):
+        l.extend((u'<form:error name="', self.attr('name'), u'" />'))
 
 class x_frame(x_html_element_nochild):
     __attrs__ = {
@@ -293,7 +321,7 @@ class x_head(x_html_element):
         }
 
 class x_header(x_html_element):
-	pass
+    pass
 
 class x_hr(x_html_element_nochild):
     pass
@@ -319,11 +347,13 @@ class x_iframe(x_html_element):
         'marginheight': unicode,
         'marginwidth': unicode,
         'name': unicode,
+        'sandbox': unicode,
         'scrolling': unicode,
         'src': unicode,
         'width': unicode,
         # rk: 'allowTransparency' is not in W3C's HTML spec, but it's supported in most modern browsers.
         'allowtransparency': unicode,
+        'allowfullscreen': unicode,
         }
 
 class x_video(x_html_element):
@@ -411,6 +441,13 @@ class x_link(x_html_element_nochild):
         'type': unicode,
         }
 
+class x_main(x_html_element):
+    # we are not enforcing the w3 spec of one and only one main element on the
+    # page
+    __attrs__ = {
+        'role': unicode,
+    }
+
 class x_map(x_html_element):
     __attrs__ = {
         'name': unicode,
@@ -422,7 +459,8 @@ class x_meta(x_html_element_nochild):
         'http-equiv': unicode,
         'name': unicode,
         'property': unicode,
-        "scheme": unicode,
+        'scheme': unicode,
+        'charset': unicode,
         }
 
 class x_nav(x_html_element):
@@ -509,7 +547,7 @@ class x_script(x_html_element):
         }
 
 class x_section(x_html_element):
-	pass
+    pass
 
 class x_select(x_html_element):
     __attrs__ = {
@@ -587,6 +625,7 @@ class x_textarea(x_html_element):
         'autocapitalize': unicode,
         'spellcheck': unicode,
         'autofocus': unicode,
+        'required': unicode,
         }
 
 class x_tfoot(x_html_element):
